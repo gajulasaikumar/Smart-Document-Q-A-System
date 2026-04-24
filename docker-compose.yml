@@ -1,0 +1,90 @@
+services:
+  api:
+    build: .
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://smartdoc:smartdoc@db:5432/smart_document}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      DATA_DIR: ${DATA_DIR:-/app/data}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-15728640}
+      CHUNK_TARGET_CHARS: ${CHUNK_TARGET_CHARS:-900}
+      CHUNK_OVERLAP_CHARS: ${CHUNK_OVERLAP_CHARS:-180}
+      RETRIEVAL_TOP_K: ${RETRIEVAL_TOP_K:-5}
+      RETRIEVAL_PER_DOCUMENT_K: ${RETRIEVAL_PER_DOCUMENT_K:-3}
+      RETRIEVAL_MIN_SCORE: ${RETRIEVAL_MIN_SCORE:-0.28}
+      QA_MAX_CONTEXT_CHARS: ${QA_MAX_CONTEXT_CHARS:-6000}
+      QUESTION_HISTORY_MESSAGES: ${QUESTION_HISTORY_MESSAGES:-6}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: sh -c "alembic upgrade head && celery -A app.core.celery_app.celery_app worker --loglevel=INFO"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://smartdoc:smartdoc@db:5432/smart_document}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      DATA_DIR: ${DATA_DIR:-/app/data}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-15728640}
+      CHUNK_TARGET_CHARS: ${CHUNK_TARGET_CHARS:-900}
+      CHUNK_OVERLAP_CHARS: ${CHUNK_OVERLAP_CHARS:-180}
+      RETRIEVAL_TOP_K: ${RETRIEVAL_TOP_K:-5}
+      RETRIEVAL_PER_DOCUMENT_K: ${RETRIEVAL_PER_DOCUMENT_K:-3}
+      RETRIEVAL_MIN_SCORE: ${RETRIEVAL_MIN_SCORE:-0.28}
+      QA_MAX_CONTEXT_CHARS: ${QA_MAX_CONTEXT_CHARS:-6000}
+      QUESTION_HISTORY_MESSAGES: ${QUESTION_HISTORY_MESSAGES:-6}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-smart_document}
+      POSTGRES_USER: ${POSTGRES_USER:-smartdoc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartdoc}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:
