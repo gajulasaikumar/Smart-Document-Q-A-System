@@ -92,6 +92,7 @@ def generate_answer(
 
 def _call_llm(*, question: str, history_text: str, context_text: str) -> str:
     settings = get_settings()
+    provider = settings.llm_provider.strip().lower()
     prompt = f"""Conversation history:
 {history_text or "No prior conversation."}
 
@@ -102,7 +103,10 @@ Question:
 {question}
 """
 
-    if settings.hf_token:
+    if provider == "huggingface":
+        if not settings.hf_token:
+            raise RuntimeError("LLM_PROVIDER is set to huggingface but HF_TOKEN is missing.")
+
         client = OpenAI(
             base_url=settings.hf_base_url,
             api_key=settings.hf_token,
@@ -118,7 +122,10 @@ Question:
         )
         return _extract_message_text(response.choices[0].message.content)
 
-    if settings.openai_api_key:
+    if provider == "openai":
+        if not settings.openai_api_key:
+            raise RuntimeError("LLM_PROVIDER is set to openai but OPENAI_API_KEY is missing.")
+
         client = OpenAI(api_key=settings.openai_api_key, timeout=settings.llm_timeout_seconds)
         response = client.chat.completions.create(
             model=settings.openai_model,
@@ -130,7 +137,7 @@ Question:
         )
         return _extract_message_text(response.choices[0].message.content)
 
-    raise RuntimeError("Set HF_TOKEN for Hugging Face router access or OPENAI_API_KEY for OpenAI.")
+    raise RuntimeError("LLM_PROVIDER must be either 'openai' or 'huggingface'.")
 
 
 def _extract_message_text(content: str | Sequence[object] | None) -> str:

@@ -23,6 +23,7 @@ class Settings(BaseSettings):
         alias="CELERY_RESULT_BACKEND",
     )
 
+    llm_provider: str = Field(default="openai", alias="LLM_PROVIDER")
     hf_token: str | None = Field(default=None, alias="HF_TOKEN")
     hf_base_url: str = Field(default="https://router.huggingface.co/v1", alias="HF_BASE_URL")
     hf_model: str = Field(default="openai/gpt-oss-120b:groq", alias="HF_MODEL")

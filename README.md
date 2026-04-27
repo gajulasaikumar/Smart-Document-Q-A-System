@@ -19,7 +19,7 @@ A FastAPI service that lets users upload PDF or DOCX files, processes them async
 - Background jobs: Celery + Redis
 - Vector search: FAISS
 - Embeddings: Sentence Transformers (`all-MiniLM-L6-v2`)
-- LLM: Hugging Face Inference Router via the OpenAI-compatible Python client
+- LLM: OpenAI API
 
 ## Architecture
 
@@ -34,16 +34,16 @@ flowchart LR
     W --> E["Sentence Transformers"]
     A --> Q["Retriever"]
     Q --> F
-    A --> O["Hugging Face Router"]
+    A --> O["OpenAI API"]
 ```
 
 ## Quick Start
 
 ### 1. Configure environment
 
-Copy `.env.example` to `.env` and set `HF_TOKEN`.
+Copy `.env.example` to `.env` and set `OPENAI_API_KEY`.
 
-The stack still boots without a token, but question answering returns `answer_status=unavailable` until the token is configured.
+The stack still boots without an API key, but question answering returns `answer_status=unavailable` until the key is configured.
 
 ### 2. Start everything
 
@@ -306,19 +306,20 @@ Why this choice:
 
 ### 7. LLM provider choice
 
-The default configuration uses Hugging Face's OpenAI-compatible router endpoint with:
+The repository is configured to be OpenAI-first for the assignment:
 
+- `LLM_PROVIDER=openai`
+- `OPENAI_API_KEY=...`
+- `OPENAI_MODEL=gpt-4.1-mini`
+
+For the temporary live demo, the same codebase can also run against Hugging Face's OpenAI-compatible router by setting:
+
+- `LLM_PROVIDER=huggingface`
 - `HF_BASE_URL=https://router.huggingface.co/v1`
 - `HF_MODEL=openai/gpt-oss-120b:groq`
+- `HF_TOKEN=...`
 
-This path was validated end to end through the API by:
-
-- uploading and processing sample documents
-- creating conversations against ready documents
-- asking a policy question and receiving a cited answer
-- asking a resume question and receiving a grounded answer
-
-The QA layer still accepts `OPENAI_API_KEY` and `OPENAI_MODEL` as a fallback, so an existing local setup can continue to work while you transition to the Hugging Face token.
+This keeps the repo aligned with the assignment requirement while allowing the live demo environment to use a different provider without changing the API surface.
 
 ## Project Structure
 
@@ -361,7 +362,8 @@ Live deployment link:
    - `smart-document-qa`
    - `smart-document-db`
    - `smart-document-redis`
-5. In Render, set the `HF_TOKEN` secret for the web service.
+5. In Render, set the provider env vars for the web service.
+   For the current demo setup, use `LLM_PROVIDER=huggingface` and set `HF_TOKEN`.
 6. Wait for the deploy to finish, then copy the generated `.onrender.com` URL.
 7. Replace the placeholder above with that live URL before submission.
 

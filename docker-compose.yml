@@ -8,6 +8,7 @@ services:
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
       DATA_DIR: ${DATA_DIR:-/app/data}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
       HF_TOKEN: ${HF_TOKEN:-}
       HF_BASE_URL: ${HF_BASE_URL:-https://router.huggingface.co/v1}
       HF_MODEL: ${HF_MODEL:-openai/gpt-oss-120b:groq}
@@ -40,6 +41,7 @@ services:
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
       DATA_DIR: ${DATA_DIR:-/app/data}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
       HF_TOKEN: ${HF_TOKEN:-}
       HF_BASE_URL: ${HF_BASE_URL:-https://router.huggingface.co/v1}
       HF_MODEL: ${HF_MODEL:-openai/gpt-oss-120b:groq}
@@ -78,6 +80,7 @@ services:
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
       DATA_DIR: ${DATA_DIR:-/app/data}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
       HF_TOKEN: ${HF_TOKEN:-}
       HF_BASE_URL: ${HF_BASE_URL:-https://router.huggingface.co/v1}
       HF_MODEL: ${HF_MODEL:-openai/gpt-oss-120b:groq}
