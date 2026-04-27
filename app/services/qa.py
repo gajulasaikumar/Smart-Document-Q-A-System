@@ -64,7 +64,7 @@ def generate_answer(
     history_text = _format_history(history_messages[-settings.question_history_messages :])
 
     try:
-        answer = _call_openai(question=question, history_text=history_text, context_text=context_text)
+        answer = _call_llm(question=question, history_text=history_text, context_text=context_text)
     except (OpenAIError, RuntimeError):
         return AnswerResult(
             answer_text=UNAVAILABLE_MESSAGE,
@@ -90,12 +90,8 @@ def generate_answer(
     )
 
 
-def _call_openai(*, question: str, history_text: str, context_text: str) -> str:
+def _call_llm(*, question: str, history_text: str, context_text: str) -> str:
     settings = get_settings()
-    if not settings.openai_api_key:
-        raise RuntimeError("OPENAI_API_KEY is not configured.")
-
-    client = OpenAI(api_key=settings.openai_api_key, timeout=settings.openai_timeout_seconds)
     prompt = f"""Conversation history:
 {history_text or "No prior conversation."}
 
@@ -106,13 +102,54 @@ Question:
 {question}
 """
 
-    response = client.responses.create(
-        model=settings.openai_model,
-        instructions=SYSTEM_PROMPT,
-        input=prompt,
-        max_output_tokens=500,
-    )
-    return response.output_text or ""
+    if settings.hf_token:
+        client = OpenAI(
+            base_url=settings.hf_base_url,
+            api_key=settings.hf_token,
+            timeout=settings.llm_timeout_seconds,
+        )
+        response = client.chat.completions.create(
+            model=settings.hf_model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=500,
+        )
+        return _extract_message_text(response.choices[0].message.content)
+
+    if settings.openai_api_key:
+        client = OpenAI(api_key=settings.openai_api_key, timeout=settings.llm_timeout_seconds)
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=500,
+        )
+        return _extract_message_text(response.choices[0].message.content)
+
+    raise RuntimeError("Set HF_TOKEN for Hugging Face router access or OPENAI_API_KEY for OpenAI.")
+
+
+def _extract_message_text(content: str | Sequence[object] | None) -> str:
+    if isinstance(content, str):
+        return content
+    if not content:
+        return ""
+
+    parts: list[str] = []
+    for item in content:
+        if isinstance(item, dict):
+            text = item.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+            continue
+        text = getattr(item, "text", None)
+        if isinstance(text, str):
+            parts.append(text)
+    return "\n".join(part for part in parts if part)
 
 
 def _format_history(history_messages: Sequence[Message]) -> str:

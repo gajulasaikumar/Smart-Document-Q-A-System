@@ -18,7 +18,11 @@ class Document(Base):
     file_extension: Mapped[str] = mapped_column(String(16), nullable=False)
     file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[DocumentStatus] = mapped_column(
-        Enum(DocumentStatus, name="document_status"),
+        Enum(
+            DocumentStatus,
+            name="document_status",
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
         default=DocumentStatus.QUEUED,
         nullable=False,
     )

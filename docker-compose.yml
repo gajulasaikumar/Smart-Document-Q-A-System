@@ -1,15 +1,52 @@
 services:
-  api:
+  migrate:
     build: .
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    command: sh -c "alembic upgrade head"
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://smartdoc:smartdoc@db:5432/smart_document}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
       DATA_DIR: ${DATA_DIR:-/app/data}
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_BASE_URL: ${HF_BASE_URL:-https://router.huggingface.co/v1}
+      HF_MODEL: ${HF_MODEL:-openai/gpt-oss-120b:groq}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-45}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-45}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-15728640}
+      CHUNK_TARGET_CHARS: ${CHUNK_TARGET_CHARS:-900}
+      CHUNK_OVERLAP_CHARS: ${CHUNK_OVERLAP_CHARS:-180}
+      RETRIEVAL_TOP_K: ${RETRIEVAL_TOP_K:-5}
+      RETRIEVAL_PER_DOCUMENT_K: ${RETRIEVAL_PER_DOCUMENT_K:-3}
+      RETRIEVAL_MIN_SCORE: ${RETRIEVAL_MIN_SCORE:-0.28}
+      QA_MAX_CONTEXT_CHARS: ${QA_MAX_CONTEXT_CHARS:-6000}
+      QUESTION_HISTORY_MESSAGES: ${QUESTION_HISTORY_MESSAGES:-6}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: .
+    command: sh -c "uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://smartdoc:smartdoc@db:5432/smart_document}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      DATA_DIR: ${DATA_DIR:-/app/data}
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_BASE_URL: ${HF_BASE_URL:-https://router.huggingface.co/v1}
+      HF_MODEL: ${HF_MODEL:-openai/gpt-oss-120b:groq}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-45}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-45}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-15728640}
       CHUNK_TARGET_CHARS: ${CHUNK_TARGET_CHARS:-900}
@@ -28,19 +65,26 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   worker:
     build: .
-    command: sh -c "alembic upgrade head && celery -A app.core.celery_app.celery_app worker --loglevel=INFO"
+    command: sh -c "celery -A app.core.celery_app.celery_app worker --loglevel=INFO"
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://smartdoc:smartdoc@db:5432/smart_document}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
       DATA_DIR: ${DATA_DIR:-/app/data}
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_BASE_URL: ${HF_BASE_URL:-https://router.huggingface.co/v1}
+      HF_MODEL: ${HF_MODEL:-openai/gpt-oss-120b:groq}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-45}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-45}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-15728640}
       CHUNK_TARGET_CHARS: ${CHUNK_TARGET_CHARS:-900}
@@ -57,6 +101,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   db:

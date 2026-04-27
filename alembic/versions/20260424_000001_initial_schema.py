@@ -9,6 +9,7 @@ from collections.abc import Sequence
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 revision: str = "20260424_000001"
@@ -17,10 +18,33 @@ branch_labels: Sequence[str] | None = None
 depends_on: Sequence[str] | None = None
 
 
-document_status = sa.Enum("queued", "processing", "ready", "failed", name="document_status")
-message_role = sa.Enum("user", "assistant", name="message_role")
-message_status = sa.Enum("completed", "error", name="message_status")
-answer_status = sa.Enum("answered", "not_found", "unavailable", name="answer_status")
+document_status = postgresql.ENUM(
+    "queued",
+    "processing",
+    "ready",
+    "failed",
+    name="document_status",
+    create_type=False,
+)
+message_role = postgresql.ENUM(
+    "user",
+    "assistant",
+    name="message_role",
+    create_type=False,
+)
+message_status = postgresql.ENUM(
+    "completed",
+    "error",
+    name="message_status",
+    create_type=False,
+)
+answer_status = postgresql.ENUM(
+    "answered",
+    "not_found",
+    "unavailable",
+    name="answer_status",
+    create_type=False,
+)
 
 
 def upgrade() -> None:

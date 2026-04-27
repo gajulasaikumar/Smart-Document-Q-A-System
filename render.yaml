@@ -1,0 +1,79 @@
+services:
+  - type: web
+    name: smart-document-qa
+    runtime: docker
+    plan: starter
+    region: oregon
+    numInstances: 1
+    healthCheckPath: /health
+    dockerCommand: sh -c "alembic upgrade head && sh /app/scripts/start_render.sh"
+    envVars:
+      - key: APP_NAME
+        value: Smart Document Q&A API
+      - key: API_V1_PREFIX
+        value: /api/v1
+      - key: ENVIRONMENT
+        value: production
+      - key: DATA_DIR
+        value: /app/data
+      - key: HF_TOKEN
+        sync: false
+      - key: HF_BASE_URL
+        value: https://router.huggingface.co/v1
+      - key: HF_MODEL
+        value: openai/gpt-oss-120b:groq
+      - key: LLM_TIMEOUT_SECONDS
+        value: "45"
+      - key: CELERY_WORKER_CONCURRENCY
+        value: "1"
+      - key: EMBEDDING_MODEL
+        value: sentence-transformers/all-MiniLM-L6-v2
+      - key: MAX_UPLOAD_BYTES
+        value: "15728640"
+      - key: CHUNK_TARGET_CHARS
+        value: "900"
+      - key: CHUNK_OVERLAP_CHARS
+        value: "180"
+      - key: RETRIEVAL_TOP_K
+        value: "5"
+      - key: RETRIEVAL_PER_DOCUMENT_K
+        value: "3"
+      - key: RETRIEVAL_MIN_SCORE
+        value: "0.28"
+      - key: QA_MAX_CONTEXT_CHARS
+        value: "6000"
+      - key: QUESTION_HISTORY_MESSAGES
+        value: "6"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: smart-document-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: smart-document-redis
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: smart-document-redis
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: smart-document-redis
+          type: keyvalue
+          property: connectionString
+  - type: keyvalue
+    name: smart-document-redis
+    plan: free
+    region: oregon
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+
+databases:
+  - name: smart-document-db
+    plan: free
+    region: oregon
+    databaseName: smart_document
+    user: smartdoc
+    ipAllowList: []

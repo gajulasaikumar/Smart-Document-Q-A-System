@@ -10,3 +10,4 @@ data/vectors/*
 !data/uploads/.gitkeep
 !data/vectors/.gitkeep
 postgres_data/
+localhost_run.*

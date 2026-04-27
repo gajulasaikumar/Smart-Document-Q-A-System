@@ -1,6 +1,6 @@
 # Smart Document Q&A System
 
-A FastAPI service that accepts PDF/DOCX uploads, processes them asynchronously, indexes document chunks in FAISS, and answers natural-language questions with OpenAI using retrieved document context.
+A FastAPI service that lets users upload PDF or DOCX files, processes them asynchronously, indexes document chunks in FAISS, and answers natural-language questions with retrieved document context.
 
 ## What It Supports
 
@@ -19,7 +19,7 @@ A FastAPI service that accepts PDF/DOCX uploads, processes them asynchronously, 
 - Background jobs: Celery + Redis
 - Vector search: FAISS
 - Embeddings: Sentence Transformers (`all-MiniLM-L6-v2`)
-- LLM: OpenAI Responses API
+- LLM: Hugging Face Inference Router via the OpenAI-compatible Python client
 
 ## Architecture
 
@@ -34,16 +34,16 @@ flowchart LR
     W --> E["Sentence Transformers"]
     A --> Q["Retriever"]
     Q --> F
-    A --> O["OpenAI API"]
+    A --> O["Hugging Face Router"]
 ```
 
 ## Quick Start
 
 ### 1. Configure environment
 
-Copy `.env.example` to `.env` and set `OPENAI_API_KEY`.
+Copy `.env.example` to `.env` and set `HF_TOKEN`.
 
-The stack will still boot without an API key, but question answering will return `answer_status=unavailable` until the key is configured.
+The stack still boots without a token, but question answering returns `answer_status=unavailable` until the token is configured.
 
 ### 2. Start everything
 
@@ -58,6 +58,10 @@ Services:
 - PostgreSQL: `localhost:5432`
 - Redis: `localhost:6379`
 
+### 3. Open the API docs
+
+Open `http://localhost:8000/docs`.
+
 ## Sample Documents
 
 Three ready-to-upload sample files are included in `sample_documents/`:
@@ -65,6 +69,98 @@ Three ready-to-upload sample files are included in `sample_documents/`:
 - `recruiting_playbook.pdf`
 - `offer_approval_policy.pdf`
 - `interview_scorecard_guidelines.docx`
+
+## Reviewer Walkthrough
+
+This is the quickest way to test the API in Swagger UI.
+
+### Step 1. Upload a document
+
+Endpoint: `POST /api/v1/documents`
+
+What to do:
+
+- choose a PDF or DOCX file
+- click `Execute`
+- copy the returned `id` as your `document_id`
+
+What happens next:
+
+- the API returns `202 Accepted`
+- the document starts in `queued`
+- the worker parses, chunks, embeds, and indexes it in the background
+
+### Step 2. Wait for the document to be ready
+
+Endpoint: `GET /api/v1/documents/{document_id}`
+
+What to do:
+
+- paste the `document_id`
+- run the endpoint every few seconds
+
+What success looks like:
+
+- `status` becomes `ready`
+- `progress` becomes `100`
+- `chunk_count` is greater than `0`
+
+### Step 3. Create a conversation
+
+Endpoint: `POST /api/v1/conversations`
+
+What to do:
+
+- attach one or more ready document IDs
+- copy the returned `id` as your `conversation_id`
+
+Request body:
+
+```json
+{
+  "title": "Offer policy review",
+  "document_ids": ["YOUR_DOCUMENT_ID"]
+}
+```
+
+### Step 4. Ask the first question
+
+Endpoint: `POST /api/v1/conversations/{conversation_id}/messages`
+
+What to do:
+
+- paste the `conversation_id`
+- put your question in the `question` field
+
+Request body:
+
+```json
+{
+  "question": "Who needs to approve offers above the midpoint of the salary band?"
+}
+```
+
+What success looks like:
+
+- `answer_status` is `answered`, `not_found`, or `unavailable`
+- `assistant_message.content` contains the answer
+- `citations` show the supporting snippets used for the answer
+
+### Step 5. Ask follow-up questions
+
+Use the same endpoint again:
+
+- `POST /api/v1/conversations/{conversation_id}/messages`
+
+Example follow-up:
+
+```json
+{
+  "question": "How quickly should approved offers be sent?"
+}
+```
+
+The same conversation keeps the thread context for follow-up questions.
 
 ## API Flow
 
@@ -139,15 +235,15 @@ Example response shape:
 }
 ```
 
-### Main endpoints
+## Endpoint Guide
 
-- `POST /api/v1/documents`
-- `GET /api/v1/documents`
-- `GET /api/v1/documents/{document_id}`
-- `POST /api/v1/conversations`
-- `GET /api/v1/conversations/{conversation_id}`
-- `POST /api/v1/conversations/{conversation_id}/messages`
-- `GET /health`
+- `POST /api/v1/documents`: upload a PDF or DOCX and start background processing
+- `GET /api/v1/documents`: list uploaded documents and their current state
+- `GET /api/v1/documents/{document_id}`: check whether a document is ready for Q&A
+- `POST /api/v1/conversations`: create a Q&A thread and attach one or more documents
+- `GET /api/v1/conversations/{conversation_id}`: fetch the conversation, linked docs, and message history
+- `POST /api/v1/conversations/{conversation_id}/messages`: ask a question or follow-up in the same thread
+- `GET /health`: verify that the API is up
 
 ## Design Decisions
 
@@ -157,9 +253,9 @@ Documents are extracted into page-aware text blocks and then chunked with senten
 
 Why this choice:
 
-- Better retrieval precision than fixed-size blind splitting
-- Preserves page metadata for citations
-- Overlap helps follow-up questions that depend on neighboring sentences
+- better retrieval precision than fixed-size blind splitting
+- preserves page metadata for citations
+- overlap helps follow-up questions that depend on neighboring sentences
 
 ### 2. FAISS indexing strategy
 
@@ -167,18 +263,18 @@ Each document gets its own FAISS inner-product index stored on disk. At query ti
 
 Why this choice:
 
-- Simple metadata filtering by conversation scope
-- Easy to reason about operationally
-- Works well for small-to-medium B2B document sets without introducing another service
+- simple metadata filtering by conversation scope
+- easy to reason about operationally
+- works well for small-to-medium B2B document sets without introducing another service
 
 ### 3. Follow-up question handling
 
-The system keeps conversation history in PostgreSQL and uses a lightweight retrieval-query expansion heuristic for short or referential follow-ups like “What about above midpoint?”.
+The system keeps conversation history in PostgreSQL and uses a lightweight retrieval-query expansion heuristic for short or referential follow-ups like "What about above midpoint?".
 
 Why this choice:
 
-- Improves retrieval without needing a second LLM call just to rewrite the question
-- Keeps the behavior deterministic when the LLM is unavailable
+- improves retrieval without needing a second LLM call just to rewrite the question
+- keeps behavior deterministic when the LLM is unavailable
 
 ### 4. Hallucination control
 
@@ -197,16 +293,32 @@ Upload requests only persist the file and create a `documents` row. Parsing, chu
 
 Why this choice:
 
-- Large documents do not block the request/response cycle
-- Progress can be polled via the document resource
-- Failures stay attached to the document record for later inspection
+- large documents do not block the request/response cycle
+- progress can be polled via the document resource
+- failures stay attached to the document record for later inspection
 
 ### 6. Failure handling
 
-- Corrupt or unreadable document: document status becomes `failed` with `error_message`
-- LLM unavailable or API key missing: assistant message returns `answer_status=unavailable`
-- No strong evidence in the docs: assistant message returns `answer_status=not_found`
-- Documents still processing: question endpoint returns `409 Conflict`
+- corrupt or unreadable document: document status becomes `failed` with `error_message`
+- LLM unavailable or token missing: assistant message returns `answer_status=unavailable`
+- no strong evidence in the docs: assistant message returns `answer_status=not_found`
+- documents still processing: question endpoint returns `409 Conflict`
+
+### 7. LLM provider choice
+
+The default configuration uses Hugging Face's OpenAI-compatible router endpoint with:
+
+- `HF_BASE_URL=https://router.huggingface.co/v1`
+- `HF_MODEL=openai/gpt-oss-120b:groq`
+
+This path was validated end to end through the API by:
+
+- uploading and processing sample documents
+- creating conversations against ready documents
+- asking a policy question and receiving a cited answer
+- asking a resume question and receiving a grounded answer
+
+The QA layer still accepts `OPENAI_API_KEY` and `OPENAI_MODEL` as a fallback, so an existing local setup can continue to work while you transition to the Hugging Face token.
 
 ## Project Structure
 
@@ -225,16 +337,39 @@ scripts/                # helper scripts, including sample document generation
 
 ## Deployment
 
-This repository is deploy-ready from a container perspective because the API and worker share a single Docker image and all infrastructure dependencies are externalized through environment variables.
+This repository now includes a Render blueprint in [render.yaml](/C:/Users/gsaik/Downloads/smart%20docuemnt/render.yaml) for a hosted demo deployment.
+
+The Render setup uses:
+
+- one public web service for FastAPI
+- one managed Render Postgres database
+- one managed Render Key Value instance for Redis-compatible Celery transport
+- a small startup script in [scripts/start_render.sh](/C:/Users/gsaik/Downloads/smart%20docuemnt/scripts/start_render.sh) that runs the API and Celery worker in the same container for the hosted demo path
+
+This keeps uploads, chunking, retrieval, and question answering working in a simple hosted setup without changing the local `docker compose` architecture.
 
 Live deployment link:
 
 - Add your hosted base URL here before submission
 
-The only reason a live link is not embedded directly in this local workspace is that cloud credentials are not available here. The fastest path is to deploy the same Docker image pair to Render, Railway, Fly.io, ECS, or any platform that supports a web service plus a worker service.
+### Render deployment steps
+
+1. Push this repository to GitHub.
+2. In Render, choose `New +` -> `Blueprint`.
+3. Connect the GitHub repository that contains this project.
+4. Render will detect `render.yaml` and create:
+   - `smart-document-qa`
+   - `smart-document-db`
+   - `smart-document-redis`
+5. In Render, set the `HF_TOKEN` secret for the web service.
+6. Wait for the deploy to finish, then copy the generated `.onrender.com` URL.
+7. Replace the placeholder above with that live URL before submission.
+
+Cloud credentials are not available in this workspace, so the final public URL still requires your GitHub and Render sign-in.
 
 ## Notes for Reviewers
 
 - The OpenAPI spec at `/docs` is the easiest way to explore the API.
 - The repository includes sample inputs so you can test the workflow immediately.
-- The API is intentionally explicit about processing state and answer quality because this is meant for B2B workflows where silent failure is worse than a visible “not enough evidence” response.
+- The quickest test path is: upload document, wait for `ready`, create conversation, ask question, ask follow-up.
+- The API is intentionally explicit about processing state and answer quality because this is meant for B2B workflows where silent failure is worse than a visible `not_found` response.

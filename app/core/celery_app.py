@@ -20,4 +20,4 @@ celery_app.conf.update(
     task_acks_late=True,
 )
 
-celery_app.autodiscover_tasks(["app.tasks"])
+import app.tasks.documents  # noqa: E402,F401

@@ -45,16 +45,28 @@ class Message(Base):
         nullable=False,
     )
     role: Mapped[MessageRole] = mapped_column(
-        Enum(MessageRole, name="message_role"),
+        Enum(
+            MessageRole,
+            name="message_role",
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
         nullable=False,
     )
     status: Mapped[MessageStatus] = mapped_column(
-        Enum(MessageStatus, name="message_status"),
+        Enum(
+            MessageStatus,
+            name="message_status",
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
         default=MessageStatus.COMPLETED,
         nullable=False,
     )
     answer_status: Mapped[AnswerStatus | None] = mapped_column(
-        Enum(AnswerStatus, name="answer_status"),
+        Enum(
+            AnswerStatus,
+            name="answer_status",
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
         nullable=True,
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)

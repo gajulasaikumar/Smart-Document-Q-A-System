@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,9 +23,16 @@ class Settings(BaseSettings):
         alias="CELERY_RESULT_BACKEND",
     )
 
+    hf_token: str | None = Field(default=None, alias="HF_TOKEN")
+    hf_base_url: str = Field(default="https://router.huggingface.co/v1", alias="HF_BASE_URL")
+    hf_model: str = Field(default="openai/gpt-oss-120b:groq", alias="HF_MODEL")
+    llm_timeout_seconds: int = Field(
+        default=45,
+        validation_alias=AliasChoices("LLM_TIMEOUT_SECONDS", "OPENAI_TIMEOUT_SECONDS"),
+    )
+
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4.1-mini", alias="OPENAI_MODEL")
-    openai_timeout_seconds: int = Field(default=45, alias="OPENAI_TIMEOUT_SECONDS")
 
     embedding_model: str = Field(
         default="sentence-transformers/all-MiniLM-L6-v2",

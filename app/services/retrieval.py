@@ -21,9 +21,19 @@ class RetrievedChunk:
 
 
 def build_retrieval_query(history_messages: Sequence[Message], question: str) -> str:
-    is_follow_up = len(question.split()) < 12 or bool(
-        re.search(r"\b(it|they|them|this|that|those|these|its|their)\b", question, re.IGNORECASE),
+    normalized_question = question.strip()
+    is_short_question = len(normalized_question.split()) < 6
+    has_follow_up_phrase = bool(
+        re.search(
+            r"^(and|also)\b|\b(what about|how about|what else|anything else|what's next)\b",
+            normalized_question,
+            re.IGNORECASE,
+        ),
     )
+    has_referential_pronoun = bool(
+        re.search(r"\b(it|they|them|its|their|those|these)\b", normalized_question, re.IGNORECASE),
+    )
+    is_follow_up = has_follow_up_phrase or (is_short_question and has_referential_pronoun)
     if not is_follow_up:
         return question
 
